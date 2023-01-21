@@ -6,6 +6,8 @@ import logging
 from hashlib import sha256
 from androidtv_remote import WrongPINError
 from cryptography.hazmat.primitives import serialization
+from google.protobuf.internal.decoder import _DecodeVarint32
+from google.protobuf.internal.encoder import _VarintBytes
 
 from androidtv_remote.const import PROTOCOL_VERSION
 
@@ -145,14 +147,23 @@ class PairingManager:
 
     
     async def _send(self, msg: pairing.PairingMessage):
-        self.writer.write(msg.ByteSize().to_bytes(1, byteorder='big'))
-        await self.writer.drain()
-
+        size = msg.ByteSize()
+        self.writer.write(_VarintBytes(size))
         self.writer.write(msg.SerializeToString())
         await self.writer.drain()
     
     async def _read(self) -> pairing.PairingMessage:
-        length = int.from_bytes(await self.reader.read(1), byteorder='big', signed=False)
+        length_buf = bytearray()
+
+        while True:
+            buf = await self.reader.read(1)
+            length_buf.append(buf[0])
+            if buf[0] & 0x80 == 0: # Check MSB for end of VarInt
+                break
+
+        length: int
+        length, _ = _DecodeVarint32(length_buf, 0)
+
         _LOGGER.debug(f"Expecting message of length {length}")
 
         raw_bytes = await self.reader.read(length)
@@ -161,5 +172,3 @@ class PairingManager:
         msg.ParseFromString(raw_bytes)
 
         return msg
-
-        
