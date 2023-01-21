@@ -9,6 +9,7 @@ from google.protobuf.message import Message
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class ProtoStream:
     def __init__(
         self,
