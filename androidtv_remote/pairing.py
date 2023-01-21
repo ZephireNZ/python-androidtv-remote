@@ -10,6 +10,7 @@ from google.protobuf.internal.decoder import _DecodeVarint32
 from google.protobuf.internal.encoder import _VarintBytes
 
 from androidtv_remote.const import PROTOCOL_VERSION
+from androidtv_remote.util import ProtoStream
 
 from .proto import pairing_pb2 as pairing
 
@@ -42,19 +43,21 @@ class PairingManager:
         ssl_ctx.verify_mode = ssl.VerifyMode.CERT_NONE
 
         _LOGGER.debug("Connecting to TV")
-        self.reader, self.writer = await asyncio.open_connection(
+        reader, writer = await asyncio.open_connection(
             host=self.host, 
             port=self.port, 
             ssl=ssl_ctx,
         )
 
-        ssl_socket: ssl.SSLSocket = self.writer.get_extra_info("ssl_object")
+        self.proto = ProtoStream(reader, writer, pairing.PairingMessage)
+
+        ssl_socket: ssl.SSLSocket = writer.get_extra_info("ssl_object")
         self.server_cert = x509.load_der_x509_certificate(
             ssl_socket.getpeercert(binary_form=True)
         )
 
         _LOGGER.debug("Sending pair request")
-        await self._send(pairing.PairingMessage(
+        await self.proto.send(pairing.PairingMessage(
             protocol_version=PROTOCOL_VERSION,
             status=pairing.PairingMessage.STATUS_OK,
             pairing_request=pairing.PairingRequest(
@@ -64,12 +67,12 @@ class PairingManager:
         ))
 
         _LOGGER.debug("Awaiting request ack")
-        ack = await self._read()
+        ack = await self.proto.read()
         if ack.status != pairing.PairingMessage.STATUS_OK:
             raise ConnectionError(f"Failed to start pairing: {ack.status}")
 
         _LOGGER.debug("Sending options")
-        await self._send(pairing.PairingMessage(
+        await self.proto.send(pairing.PairingMessage(
             protocol_version=PROTOCOL_VERSION,
             status=pairing.PairingMessage.STATUS_OK,
             pairing_option=pairing.PairingOption(
@@ -82,12 +85,12 @@ class PairingManager:
         ))
 
         _LOGGER.debug("Awaiting options ack")
-        ack = await self._read()
+        ack = await self.proto.read()
         if ack.status != pairing.PairingMessage.STATUS_OK:
             raise ConnectionError(f"Failed to agree options: {ack.status}")
         
         _LOGGER.debug("Sending configuration")
-        await self._send(pairing.PairingMessage(
+        await self.proto.send(pairing.PairingMessage(
             protocol_version=PROTOCOL_VERSION,
             status=pairing.PairingMessage.STATUS_OK,
             pairing_configuration=pairing.PairingConfiguration(
@@ -100,14 +103,14 @@ class PairingManager:
         ))
 
         _LOGGER.debug("Awaiting configuration ack")
-        ack = await self._read()
+        ack = await self.proto.read()
         if ack.status != pairing.PairingMessage.STATUS_OK:
             raise ConnectionError(f"Failed to agree configuration: {ack.status}")
     
     async def send_secret(self, code: str):
-        encoded = self.encode_secret(code)
+        encoded = self._encode_secret(code)
 
-        await self._send(pairing.PairingMessage(
+        await self.proto.send(pairing.PairingMessage(
             protocol_version=PROTOCOL_VERSION,
             status=pairing.PairingMessage.STATUS_OK,
             pairing_secret=pairing.PairingSecret(
@@ -116,13 +119,13 @@ class PairingManager:
         ))
 
         _LOGGER.debug("Awaiting secret ack")
-        ack = await self._read()
+        ack = await self.proto.read()
         if ack.status != pairing.PairingMessage.STATUS_OK:
             raise WrongPINError()
 
 
 
-    def encode_secret(self, code: str) -> bytes:
+    def _encode_secret(self, code: str) -> bytes:
         code_bytes = bytes.fromhex(code)
 
         
@@ -143,32 +146,3 @@ class PairingManager:
             raise WrongPINError()
         
         return result
-        
-
-    
-    async def _send(self, msg: pairing.PairingMessage):
-        size = msg.ByteSize()
-        self.writer.write(_VarintBytes(size))
-        self.writer.write(msg.SerializeToString())
-        await self.writer.drain()
-    
-    async def _read(self) -> pairing.PairingMessage:
-        length_buf = bytearray()
-
-        while True:
-            buf = await self.reader.read(1)
-            length_buf.append(buf[0])
-            if buf[0] & 0x80 == 0: # Check MSB for end of VarInt
-                break
-
-        length: int
-        length, _ = _DecodeVarint32(length_buf, 0)
-
-        _LOGGER.debug(f"Expecting message of length {length}")
-
-        raw_bytes = await self.reader.read(length)
-
-        msg = pairing.PairingMessage()
-        msg.ParseFromString(raw_bytes)
-
-        return msg
