@@ -1,7 +1,6 @@
 import logging
 from asyncio import StreamReader, StreamWriter
-from types import FunctionType
-from typing import Callable, TypeVar
+from typing import Callable
 
 from google.protobuf.internal.decoder import _DecodeVarint32
 from google.protobuf.internal.encoder import _VarintBytes
@@ -43,8 +42,13 @@ class ProtoStream:
 
         msg = self.msg_func()
 
-        raw_bytes = await self.reader.read(length)
+        msg_buf = bytearray()
 
-        msg.ParseFromString(raw_bytes)
+        while length > 0:
+            raw_bytes = await self.reader.read(length)
+            length -= len(raw_bytes)
+            msg_buf += raw_bytes
+
+        msg.ParseFromString(bytes(msg_buf))
 
         return msg
