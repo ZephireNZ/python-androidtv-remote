@@ -17,7 +17,8 @@ Then, create an instance of the Pairing Manager
 pm = PairingManager(
     key_path="key.pem",
     cert_path="cert.pem",
-    host="1.2.3.4")
+    host="1.2.3.4"
+)
 ```
 
 Start the pairing process with `pm.start_pairing()` and then after requesting input from the user, pass this to `pm.send_secret(pin)`.

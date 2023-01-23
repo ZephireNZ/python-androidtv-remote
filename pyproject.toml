@@ -3,9 +3,9 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "androidtv-remote"
+name = "androidtv-remote2"
 version = "1.0.0"
-licence = {text = "MIT"}
+license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.9.0"
 dependencies = [
