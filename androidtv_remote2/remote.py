@@ -4,7 +4,7 @@ import ssl
 from dataclasses import dataclass
 from typing import Callable
 
-from androidtv_remote.util import ProtoStream
+from androidtv_remote2.util import ProtoStream
 
 from .proto import remote_pb2 as remote
 

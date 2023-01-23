@@ -6,9 +6,9 @@ from hashlib import sha256
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from androidtv_remote import WrongPINError
-from androidtv_remote.const import PROTOCOL_VERSION
-from androidtv_remote.util import ProtoStream
+from androidtv_remote2 import WrongPINError
+from androidtv_remote2.const import PROTOCOL_VERSION
+from androidtv_remote2.util import ProtoStream
 
 from .proto import pairing_pb2 as pairing
 
