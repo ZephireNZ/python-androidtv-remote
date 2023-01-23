@@ -51,30 +51,33 @@ class RemoteManager:
             ssl=ssl_ctx,
         )
 
-        self.proto = ProtoStream(reader, writer, remote.RemoteMessage)
+        self._proto = ProtoStream(reader, writer, remote.RemoteMessage)
         self.connected = True
 
     async def disconnect(self):
         self.connected = False
-        self.proto.writer.close()
-        await self.proto.writer.wait_closed()
-        self.proto = None
+        self._proto.writer.close()
+        await self._proto.writer.wait_closed()
+        self._proto = None
     
     async def send_key(self, key: remote.RemoteKeyCode, direction: remote.RemoteDirection):
         _LOGGER.debug(f"Sending key press {remote.RemoteKeyCode.Name(key)}, {remote.RemoteDirection.Name(direction)}")
-        await self.proto.send(remote.RemoteMessage(
+        await self.send(remote.RemoteMessage(
             remote_key_inject=remote.RemoteKeyInject(
                 key_code=key,
                 direction=direction
             )
         ))
+    
+    async def send(self, msg: remote.RemoteMessage):
+        await self._proto.send(msg)
 
     async def loop(self, callback: Callable[[remote.RemoteMessage], None]):
         _LOGGER.debug("Starting connection loop")
 
         while self.connected:
             try:
-                msg: remote.RemoteMessage = await self.proto.read()
+                msg: remote.RemoteMessage = await self._proto.read()
             except IOError:
                 _LOGGER.warning("Stream has been closed, triggering a disconnect.")
                 await self.disconnect()
@@ -82,7 +85,7 @@ class RemoteManager:
 
             if msg.HasField("remote_ping_request"):
                 _LOGGER.debug("Responding to ping")
-                await self.proto.send(
+                await self.send(
                     remote.RemoteMessage(
                         remote_ping_response=remote.RemotePingResponse(val1=msg.remote_ping_request.val1)
                     )
@@ -96,7 +99,7 @@ class RemoteManager:
                     App Version: {msg.remote_configure.device_info.app_version}"""
                 )
 
-                await self.proto.send(
+                await self.send(
                     remote.RemoteMessage(
                         remote_configure=remote.RemoteConfigure(
                             code1=622,
@@ -113,7 +116,7 @@ class RemoteManager:
                 )
             elif msg.HasField("remote_set_active"):
                 _LOGGER.debug("Set active")
-                await self.proto.send(
+                await self.send(
                     remote.RemoteMessage(
                         remote_set_active=remote.RemoteSetActive(active=622)
                     )
