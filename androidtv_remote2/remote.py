@@ -34,6 +34,7 @@ class RemoteManager:
         self.cert_path = cert_path
         self.connected = False
         self.device_info = device_info
+        self.is_on = False
 
     async def connect(self):
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -56,10 +57,19 @@ class RemoteManager:
 
     async def disconnect(self):
         self.connected = False
-        self._proto.writer.close()
-        await self._proto.writer.wait_closed()
-        self._proto = None
+        try:    
+            self._proto.writer.close()
+            await self._proto.writer.wait_closed()
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.warning("Failed to disconnect connection")
+        finally:
+            self._proto = None
+        
     
+    async def send_key(self, key: str):
+        key_code = remote.RemoteKeyCode.Value(key)
+        self.send_key(key_code, direction=remote.SHORT)
+
     async def send_key(self, key: remote.RemoteKeyCode, direction: remote.RemoteDirection):
         _LOGGER.debug(f"Sending key press {remote.RemoteKeyCode.Name(key)}, {remote.RemoteDirection.Name(direction)}")
         await self.send(remote.RemoteMessage(
@@ -67,6 +77,12 @@ class RemoteManager:
                 key_code=key,
                 direction=direction
             )
+        ))
+    
+    async def send_onoff(self, onoff: bool):
+        _LOGGER.debug(f"Sending command to turn TV on/off: {onoff}")
+        await self.send(remote.RemoteMessage(
+            remote_start=remote.RemoteStart(started=onoff)
         ))
     
     async def send(self, msg: remote.RemoteMessage):
@@ -78,10 +94,10 @@ class RemoteManager:
         while self.connected:
             try:
                 msg: remote.RemoteMessage = await self._proto.read()
-            except IOError:
+            except IOError as e:
                 _LOGGER.warning("Stream has been closed, triggering a disconnect.")
                 await self.disconnect()
-                return
+                raise e
 
             if msg.HasField("remote_ping_request"):
                 _LOGGER.debug("Responding to ping")
@@ -98,6 +114,8 @@ class RemoteManager:
                     Package: {msg.remote_configure.device_info.package_name}
                     App Version: {msg.remote_configure.device_info.app_version}"""
                 )
+
+                callback(msg)
 
                 await self.send(
                     remote.RemoteMessage(
@@ -116,6 +134,9 @@ class RemoteManager:
                 )
             elif msg.HasField("remote_set_active"):
                 _LOGGER.debug("Set active")
+
+                callback(msg)
+
                 await self.send(
                     remote.RemoteMessage(
                         remote_set_active=remote.RemoteSetActive(active=622)
@@ -123,6 +144,10 @@ class RemoteManager:
                 )
             elif msg.HasField("remote_error"):
                 _LOGGER.error(f"Error returned from remote: {msg.remote_error.message}")
+
+                callback(msg)
+            elif msg.HasField("remote_start"):
+                self.is_on = msg.remote_start.started
             else:
                 callback(msg)
         
