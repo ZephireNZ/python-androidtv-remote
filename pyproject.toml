@@ -13,6 +13,12 @@ dependencies = [
     "protobuf==4.21.12"
 ]
 
+[tool.setuptools.packages.find]
+include = ["androidtv_remote2"]
+
+[tool.setuptools.package-data]
+androidtv_remote2 = ["**/*.pyi"]
+
 [tool.black]
 target-version = ["py39", "py310"]
 
