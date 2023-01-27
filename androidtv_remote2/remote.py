@@ -109,7 +109,7 @@ class RemoteManager:
             self._proto = None
         
     
-    async def send_key(self, key: remote.RemoteKeyCode | str, direction: remote.RemoteDirection = remote.SHORT):
+    async def send_key(self, key: "remote.RemoteKeyCode | str", direction: remote.RemoteDirection = remote.SHORT):
         if isinstance(key, str):
             key = remote.RemoteKeyCode.Value(key)
 
