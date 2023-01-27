@@ -109,11 +109,10 @@ class RemoteManager:
             self._proto = None
         
     
-    async def send_key(self, key: str):
-        key_code = remote.RemoteKeyCode.Value(key)
-        self.send_key(key_code, direction=remote.SHORT)
+    async def send_key(self, key: remote.RemoteKeyCode | str, direction: remote.RemoteDirection = remote.SHORT):
+        if isinstance(key, str):
+            key = remote.RemoteKeyCode.Value(key)
 
-    async def send_key(self, key: remote.RemoteKeyCode, direction: remote.RemoteDirection):
         _LOGGER.debug(f"Sending key press {remote.RemoteKeyCode.Name(key)}, {remote.RemoteDirection.Name(direction)}")
         await self.send(remote.RemoteMessage(
             remote_key_inject=remote.RemoteKeyInject(
