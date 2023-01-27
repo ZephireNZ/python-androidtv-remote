@@ -53,6 +53,49 @@ class RemoteManager:
         )
 
         self._proto = ProtoStream(reader, writer, remote.RemoteMessage)
+
+        try:
+            msg: remote.RemoteMessage = await self._proto.read()
+        except ssl.SSLError as e:
+            _LOGGER.exception("Authentication failed")
+            self._proto.writer.close()
+            self._proto = None
+            self.connected = False
+            raise
+        except IOError as e:
+            _LOGGER.exception("Failed to connect")
+            self._proto.writer.close()
+            self._proto = None
+            self.connected = False
+            raise
+
+        if not msg.HasField("remote_configure"):
+            _LOGGER.warning("Did not receive config message")
+        
+        _LOGGER.debug(
+            f"""Device Info:
+            Vendor: {msg.remote_configure.device_info.vendor}
+            Model: {msg.remote_configure.device_info.model}
+            Package: {msg.remote_configure.device_info.package_name}
+            App Version: {msg.remote_configure.device_info.app_version}"""
+        )
+
+        await self.send(
+            remote.RemoteMessage(
+                remote_configure=remote.RemoteConfigure(
+                    code1=622,
+                    device_info=remote.RemoteDeviceInfo(
+                        model=self.device_info.model,
+                        vendor=self.device_info.vendor,
+                        unknown1=1,
+                        unknown2="1",
+                        package_name=self.device_info.package_name,
+                        app_version=self.device_info.app_version,
+                    ),
+                )
+            )
+        )
+
         self.connected = True
 
     async def disconnect(self):
@@ -99,6 +142,8 @@ class RemoteManager:
                 await self.disconnect()
                 raise e
 
+            callback(msg)
+
             if msg.HasField("remote_ping_request"):
                 _LOGGER.debug("Responding to ping")
                 await self.send(
@@ -106,36 +151,8 @@ class RemoteManager:
                         remote_ping_response=remote.RemotePingResponse(val1=msg.remote_ping_request.val1)
                     )
                 )
-            elif msg.HasField("remote_configure"):
-                _LOGGER.debug(
-                    f"""Device Info:
-                    Vendor: {msg.remote_configure.device_info.vendor}
-                    Model: {msg.remote_configure.device_info.model}
-                    Package: {msg.remote_configure.device_info.package_name}
-                    App Version: {msg.remote_configure.device_info.app_version}"""
-                )
-
-                callback(msg)
-
-                await self.send(
-                    remote.RemoteMessage(
-                        remote_configure=remote.RemoteConfigure(
-                            code1=622,
-                            device_info=remote.RemoteDeviceInfo(
-                                model=self.device_info.model,
-                                vendor=self.device_info.vendor,
-                                unknown1=1,
-                                unknown2="1",
-                                package_name=self.device_info.package_name,
-                                app_version=self.device_info.app_version,
-                            ),
-                        )
-                    )
-                )
             elif msg.HasField("remote_set_active"):
                 _LOGGER.debug("Set active")
-
-                callback(msg)
 
                 await self.send(
                     remote.RemoteMessage(
@@ -144,11 +161,7 @@ class RemoteManager:
                 )
             elif msg.HasField("remote_error"):
                 _LOGGER.error(f"Error returned from remote: {msg.remote_error.message}")
-
-                callback(msg)
             elif msg.HasField("remote_start"):
                 self.is_on = msg.remote_start.started
-            else:
-                callback(msg)
         
         _LOGGER.debug("Loop finished")
