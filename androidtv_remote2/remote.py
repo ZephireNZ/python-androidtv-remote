@@ -125,7 +125,7 @@ class RemoteManager:
         return True
 
     async def disconnect(self):
-        self.disconnect(True)
+        await self._disconnect(True)
         self.listener.on_disconnected()
 
     async def _disconnect(self, wait: bool = False):
@@ -161,10 +161,10 @@ class RemoteManager:
     async def send(self, msg: remote.RemoteMessage):
         try:
             await self._proto.send(msg)
-        except (IOError, ConnectionResetError):
+        except (IOError, ConnectionResetError) as e:
             _LOGGER.warning("Stream has been closed, triggering a disconnect.")
             await self._disconnect(wait=False)
-            self.listener.on_connection_lost()
+            self.listener.on_connection_lost(e)
             return
 
     async def loop(self):
@@ -178,8 +178,6 @@ class RemoteManager:
                 await self._disconnect(wait=False)
                 self.listener.on_connection_lost(e)
                 return
-
-            self.listener.on_message(msg)
 
             if msg.HasField("remote_ping_request"):
                 _LOGGER.debug("Responding to ping")
@@ -202,5 +200,7 @@ class RemoteManager:
                 _LOGGER.error(f"Error returned from remote: {msg.remote_error.message}")
             elif msg.HasField("remote_start"):
                 self.is_on = msg.remote_start.started
+
+            self.listener.on_message(msg)
 
         _LOGGER.debug("Loop finished")
