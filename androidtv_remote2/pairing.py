@@ -1,7 +1,7 @@
 import asyncio
+from hashlib import sha256
 import logging
 import ssl
-from hashlib import sha256
 
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import rsa

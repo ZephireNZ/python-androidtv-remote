@@ -1,5 +1,5 @@
-import logging
 from asyncio import StreamReader, StreamWriter
+import logging
 from typing import Callable
 
 from google.protobuf.internal.decoder import _DecodeVarint32
@@ -48,7 +48,7 @@ class ProtoStream:
             raw_bytes = await self.reader.read(length)
             length -= len(raw_bytes)
             msg_buf += raw_bytes
-        
+
         _LOGGER.debug(f"Message in hex: {msg_buf.hex()}")
 
         msg.ParseFromString(bytes(msg_buf))
