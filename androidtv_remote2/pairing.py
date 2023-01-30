@@ -31,6 +31,15 @@ class PairingManager:
         with open(self.cert_path, "rb") as f:
             self.cert = x509.load_pem_x509_certificate(f.read())
 
+    async def disconnect(self):
+        try:
+            self.proto.writer.close()
+            await self.proto.writer.wait_closed()
+        except Exception:
+            pass  # Don't worry if disconnection failed
+        finally:
+            self.proto = None
+
     async def start_pairing(self, client_name="python-androidtv-remote"):
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_ctx.load_cert_chain(
