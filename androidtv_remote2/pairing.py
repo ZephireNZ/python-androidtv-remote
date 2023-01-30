@@ -40,7 +40,7 @@ class PairingManager:
         finally:
             self.proto = None
 
-    async def start_pairing(self, client_name="python-androidtv-remote"):
+    async def connect(self):
         ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_ctx.load_cert_chain(
             certfile=self.cert_path,
@@ -63,6 +63,7 @@ class PairingManager:
             ssl_socket.getpeercert(binary_form=True)
         )
 
+    async def start_pairing(self, client_name="python-androidtv-remote"):
         _LOGGER.debug("Sending pair request")
         await self.proto.send(
             pairing.PairingMessage(
