@@ -87,7 +87,7 @@ class RemoteManager:
             self.disconnect(wait=False)
             self.listener.on_authentication_error()
             return False
-        except (IOError, ConnectionResetError) as e:
+        except OSError as e:
             _LOGGER.exception("Failed to connect")
             self.disconnect(wait=False)
             self.listener.on_connection_lost(e)
@@ -161,7 +161,7 @@ class RemoteManager:
     async def send(self, msg: remote.RemoteMessage):
         try:
             await self._proto.send(msg)
-        except (IOError, ConnectionResetError) as e:
+        except OSError as e:
             _LOGGER.warning("Stream has been closed, triggering a disconnect.")
             await self._disconnect(wait=False)
             self.listener.on_connection_lost(e)
@@ -173,7 +173,7 @@ class RemoteManager:
         while self.connected:
             try:
                 msg: remote.RemoteMessage = await self._proto.read()
-            except (IOError, ConnectionResetError) as e:
+            except OSError as e:
                 _LOGGER.warning("Stream has been closed, triggering a disconnect.")
                 await self._disconnect(wait=False)
                 self.listener.on_connection_lost(e)
